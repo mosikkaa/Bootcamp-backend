@@ -1,0 +1,104 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  username     String       @unique
+  email        String       @unique
+  password     String
+  fullName     String?
+  mobileNumber String?
+  age          Int?
+  avatar       String?
+  enrollments  Enrollment[]
+  reviews      Review[]
+  createdAt    DateTime     @default(now())
+}
+
+model Category {
+  id      Int      @id @default(autoincrement())
+  name    String
+  icon    String
+  topics  Topic[]
+  courses Course[]
+}
+
+model Topic {
+  id         Int      @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+}
+
+model Instructor {
+  id      Int      @id @default(autoincrement())
+  name    String
+  avatar  String
+  courses Course[]
+}
+
+model Course {
+  id            Int              @id @default(autoincrement())
+  title         String
+  description   String
+  image         String?
+  basePrice     Decimal          @db.Decimal(8, 2)
+  durationWeeks Int
+  hours         Int
+  isFeatured    Boolean          @default(false)
+  categoryId    Int
+  instructorId  Int
+  category      Category         @relation(fields: [categoryId], references: [id])
+  instructor    Instructor       @relation(fields: [instructorId], references: [id])
+  schedules     CourseSchedule[]
+  reviews       Review[]
+  createdAt     DateTime         @default(now())
+}
+
+enum SessionType {
+  online
+  in_person
+  hybrid
+}
+
+model CourseSchedule {
+  id               Int          @id @default(autoincrement())
+  courseId         Int
+  weeklyScheduleId Int
+  timeSlotId       Int
+  sessionType      SessionType
+  priceModifier    Decimal      @db.Decimal(8, 2) @default(0)
+  totalSeats       Int
+  location         String?
+  course           Course       @relation(fields: [courseId], references: [id])
+  enrollments      Enrollment[]
+}
+
+model Enrollment {
+  id               Int            @id @default(autoincrement())
+  userId           Int
+  courseId         Int
+  courseScheduleId Int
+  progress         Int            @default(0)
+  completedAt      DateTime?
+  user             User           @relation(fields: [userId], references: [id])
+  schedule         CourseSchedule @relation(fields: [courseScheduleId], references: [id])
+  createdAt        DateTime       @default(now())
+}
+
+model Review {
+  id       Int    @id @default(autoincrement())
+  userId   Int
+  courseId Int
+  rating   Int
+  user     User   @relation(fields: [userId], references: [id])
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+}
