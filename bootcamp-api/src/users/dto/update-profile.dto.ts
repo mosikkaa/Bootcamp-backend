@@ -1,20 +1,22 @@
-import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  fullName?: string;
+  @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[a-zA-Z\s]+$/, { message: 'full_name may only contain letters and spaces' })
+  full_name?: string;
 
   @IsOptional()
   @IsString()
-  @Matches(/^\+995/, { message: 'mobileNumber must start with +995' })
-  mobileNumber?: string;
+  @Matches(/^\d{9,}$/, { message: 'mobile_number must be local digits (9+), e.g. 555123456' })
+  mobile_number?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(16)
-  @Max(100)
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : undefined))
   age?: number;
 }

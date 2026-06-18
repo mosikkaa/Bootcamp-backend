@@ -19,15 +19,13 @@ export class CoursesController {
   constructor(private readonly courses: CoursesService) {}
 
   @Get('courses')
-  async list(@Query() query: any) {
-    const data = await this.courses.list(query);
-    return { data };
+  list(@Query() query: any) {
+    return this.courses.list(query);
   }
 
   @Get('courses/featured')
-  async featured() {
-    const data = await this.courses.featured();
-    return { data };
+  featured() {
+    return this.courses.featured();
   }
 
   @Get('courses/:id')
@@ -37,9 +35,32 @@ export class CoursesController {
     return { data };
   }
 
-  @Get('courses/:id/schedules')
-  async schedules(@Param('id', ParseIntPipe) id: number) {
-    const data = await this.courses.schedules(id);
+  @Get('courses/:id/weekly-schedules')
+  async weeklySchedules(@Param('id', ParseIntPipe) id: number) {
+    const data = await this.courses.weeklySchedules(id);
+    return { data };
+  }
+
+  @Get('courses/:id/time-slots')
+  async timeSlots(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('weekly_schedule_id') weeklyScheduleId: string,
+  ) {
+    const data = await this.courses.timeSlots(id, parseInt(weeklyScheduleId, 10));
+    return { data };
+  }
+
+  @Get('courses/:id/session-types')
+  async sessionTypes(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('weekly_schedule_id') weeklyScheduleId: string,
+    @Query('time_slot_id') timeSlotId: string,
+  ) {
+    const data = await this.courses.sessionTypes(
+      id,
+      parseInt(weeklyScheduleId, 10),
+      parseInt(timeSlotId, 10),
+    );
     return { data };
   }
 
@@ -50,7 +71,6 @@ export class CoursesController {
     @Body() dto: CreateReviewDto,
     @Request() req: any,
   ) {
-    const data = await this.courses.createReview(id, req.user.id, dto);
-    return { data };
+    return this.courses.createReview(id, req.user.id, dto);
   }
 }

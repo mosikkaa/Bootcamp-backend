@@ -8,7 +8,11 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async updateProfile(userId: number, dto: UpdateProfileDto, avatarFilename?: string) {
-    const data: any = { ...dto };
+    const data: any = {};
+
+    if (dto.full_name !== undefined) data.fullName = dto.full_name;
+    if (dto.mobile_number !== undefined) data.mobileNumber = `+995${dto.mobile_number}`;
+    if (dto.age !== undefined) data.age = dto.age;
     if (avatarFilename) {
       data.avatar = `${process.env.APP_URL}/uploads/avatars/${avatarFilename}`;
     }
