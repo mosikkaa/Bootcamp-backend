@@ -7,7 +7,6 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -21,12 +20,8 @@ export class EnrollmentsController {
   constructor(private readonly enrollments: EnrollmentsService) {}
 
   @Post()
-  async create(
-    @Body() dto: CreateEnrollmentDto,
-    @Request() req: any,
-    @Query('force') force?: string,
-  ) {
-    const data = await this.enrollments.create(req.user.id, dto, force === 'true');
+  async create(@Body() dto: CreateEnrollmentDto, @Request() req: any) {
+    const data = await this.enrollments.create(req.user.id, dto, dto.force ?? false);
     return { data };
   }
 

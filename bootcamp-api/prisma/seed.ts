@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient, SessionType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import * as bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({ connectionString: process.env['DATABASE_URL'] });
 const prisma = new PrismaClient({ adapter });
@@ -46,11 +47,11 @@ async function main() {
 
   await prisma.category.createMany({
     data: [
-      { id: 1, name: 'Web Development', icon: 'FaGlobe' },
-      { id: 2, name: 'Data Science', icon: 'FaChartBar' },
-      { id: 3, name: 'Mobile Development', icon: 'FaMobileAlt' },
-      { id: 4, name: 'DevOps & Cloud', icon: 'FaCloud' },
-      { id: 5, name: 'Cybersecurity', icon: 'FaShieldAlt' },
+      { id: 1, name: 'Development', icon: 'development' },
+      { id: 2, name: 'Data Science', icon: 'data-science' },
+      { id: 3, name: 'Design', icon: 'design' },
+      { id: 4, name: 'Business', icon: 'business' },
+      { id: 5, name: 'Marketing', icon: 'marketing' },
     ],
   });
 
@@ -109,7 +110,8 @@ async function main() {
   const prices = [49.99, 79.99, 99.99, 129.99, 149.99, 199.99];
   const weeks = [6, 8, 10, 12, 8, 16];
   const hours = [30, 40, 50, 60, 40, 80];
-  const featuredPositions = new Set([0, 3]); // 1st and 4th in each group of 6
+  // indices 2 (React Mastery), 8 (Deep Learning), 14 (iOS with Swift)
+  const featuredIndices = new Set([2, 8, 14]);
 
   const courseData = [
     // Web Development (cat 1, topics 1-6)
@@ -160,7 +162,7 @@ async function main() {
       basePrice: prices[groupIndex],
       durationWeeks: weeks[groupIndex],
       hours: hours[groupIndex],
-      isFeatured: featuredPositions.has(groupIndex),
+      isFeatured: featuredIndices.has(i),
       categoryId,
       instructorId: (i % 12) + 1,
     };
@@ -199,12 +201,48 @@ async function main() {
 
   await prisma.courseSchedule.createMany({ data: schedules });
 
+  // Demo user with pre-seeded enrollments so Continue Learning looks populated
+  const demoPassword = await bcrypt.hash('Demo1234!', 10);
+  const demoUser = await prisma.user.create({
+    data: {
+      username: 'demouser',
+      email: 'demo@bootcamp.dev',
+      password: demoPassword,
+      fullName: 'Demo User',
+      mobileNumber: '+995555123456',
+      age: 25,
+    },
+  });
+
+  // Enroll demo user in 3 courses with varying progress
+  // course 3 (React Mastery, featured)  → scheduleId 9  (Mon-Wed, 9-11am)
+  // course 9 (Deep Learning, featured)  → scheduleId 38 (Tue-Thu, 5-7pm)
+  // course 6 (Full-Stack, non-featured) → scheduleId 26 (Fri-Sat, 5-7pm)
+  const demoEnrollments = [
+    { userId: demoUser.id, courseId: 3, courseScheduleId: 9,  progress: 65,  completedAt: null },
+    { userId: demoUser.id, courseId: 9, courseScheduleId: 38, progress: 30,  completedAt: null },
+    { userId: demoUser.id, courseId: 6, courseScheduleId: 26, progress: 100, completedAt: new Date() },
+  ];
+  await prisma.enrollment.createMany({ data: demoEnrollments });
+
+  // Seed a few reviews from demo user so courses show ratings
+  await prisma.review.createMany({
+    data: [
+      { userId: demoUser.id, courseId: 3, rating: 5 },
+      { userId: demoUser.id, courseId: 9, rating: 4 },
+      { userId: demoUser.id, courseId: 6, rating: 5 },
+    ],
+  });
+
   console.log(`Seeded:`);
   console.log(`  Categories: 5`);
   console.log(`  Topics: 30`);
   console.log(`  Instructors: 12`);
   console.log(`  Courses: ${courses.length}`);
   console.log(`  Schedules: ${schedules.length}`);
+  console.log(`  Demo user: demo@bootcamp.dev / Demo1234!`);
+  console.log(`  Demo enrollments: 3 (65%, 30%, 100%)`);
+  console.log(`  Demo reviews: 3`);
 }
 
 main()

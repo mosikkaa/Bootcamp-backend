@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WEEKLY_SCHEDULE_MAP, TIME_SLOT_MAP } from '../common/lookup-maps';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -22,12 +22,30 @@ function serializeSchedule(s: any) {
 export class CoursesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: { categoryId?: any; instructorId?: any; search?: string; sort?: string; page?: any; limit?: any }) {
+  async list(query: Record<string, any>) {
     const page = Math.max(1, parseInt(query.page ?? '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '9', 10)));
+
+    const toIds = (val: any): number[] =>
+      [val].flat().filter(Boolean).map(Number).filter(n => !isNaN(n));
+
+    const categoryIds = toIds(query['categories[]'] ?? query.categories ?? query.category);
+    const topicIds = toIds(query['topics[]'] ?? query.topics ?? query.topic);
+    const instructorIds = toIds(query['instructors[]'] ?? query.instructors ?? query.instructor);
+
+    let effectiveCategoryIds: number[] = [...categoryIds];
+    if (topicIds.length) {
+      const topics = await this.prisma.topic.findMany({
+        where: { id: { in: topicIds } },
+        select: { categoryId: true },
+      });
+      const topicCatIds = topics.map(t => t.categoryId);
+      effectiveCategoryIds = [...new Set([...effectiveCategoryIds, ...topicCatIds])];
+    }
+
     const where: any = {};
-    if (query.categoryId) where.categoryId = Number(query.categoryId);
-    if (query.instructorId) where.instructorId = Number(query.instructorId);
+    if (effectiveCategoryIds.length) where.categoryId = { in: effectiveCategoryIds };
+    if (instructorIds.length) where.instructorId = { in: instructorIds };
     if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
 
     let orderBy: any = [{ isFeatured: 'desc' }, { createdAt: 'desc' }];
@@ -141,7 +159,23 @@ export class CoursesService {
       reviewCount: course.reviews.length,
       isRated,
       enrollment: userEnrollment
-        ? { id: userEnrollment.id, progress: userEnrollment.progress, completedAt: userEnrollment.completedAt }
+        ? {
+            id: userEnrollment.id,
+            progress: userEnrollment.progress,
+            completedAt: userEnrollment.completedAt,
+            schedule: userEnrollment.schedule
+              ? {
+                  weeklySchedule: WEEKLY_SCHEDULE_MAP[userEnrollment.schedule.weeklyScheduleId]
+                    ? { label: WEEKLY_SCHEDULE_MAP[userEnrollment.schedule.weeklyScheduleId].label }
+                    : null,
+                  timeSlot: TIME_SLOT_MAP[userEnrollment.schedule.timeSlotId]
+                    ? { label: TIME_SLOT_MAP[userEnrollment.schedule.timeSlotId].label }
+                    : null,
+                  sessionType: { name: userEnrollment.schedule.sessionType },
+                  location: userEnrollment.schedule.location,
+                }
+              : null,
+          }
         : null,
     };
   }
@@ -204,14 +238,11 @@ export class CoursesService {
     });
     if (!enrolled) throw new BadRequestException('You must be enrolled to review this course');
 
-    try {
-      await this.prisma.review.create({
-        data: { userId, courseId, rating: dto.rating },
-      });
-      return { message: 'Review submitted' };
-    } catch (e: any) {
-      if (e.code === 'P2002') throw new ConflictException('You have already reviewed this course');
-      throw e;
-    }
+    await this.prisma.review.upsert({
+      where: { userId_courseId: { userId, courseId } },
+      create: { userId, courseId, rating: dto.rating },
+      update: { rating: dto.rating },
+    });
+    return { message: 'Review submitted' };
   }
 }

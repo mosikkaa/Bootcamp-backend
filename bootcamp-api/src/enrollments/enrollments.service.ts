@@ -71,15 +71,20 @@ export class EnrollmentsService {
             timeSlotId: schedule.timeSlotId,
           },
         },
-        include: { schedule: true },
       });
       if (conflictingEnrollment) {
         const weekly = WEEKLY_SCHEDULE_MAP[schedule.weeklyScheduleId];
         const slot = TIME_SLOT_MAP[schedule.timeSlotId];
-        const conflictMsg = `${weekly?.label ?? 'Unknown'} at ${slot?.label ?? 'unknown time'}`;
+        const conflictingCourse = await this.prisma.course.findUnique({
+          where: { id: conflictingEnrollment.courseId },
+          select: { title: true },
+        });
         throw new ConflictException({
           message: 'Schedule conflict',
-          conflicts: [conflictMsg],
+          conflicts: [{
+            conflictingCourseName: conflictingCourse?.title ?? 'Another course',
+            schedule: `${weekly?.label ?? ''} at ${slot?.label ?? ''}`,
+          }],
         });
       }
     }
@@ -122,16 +127,22 @@ export class EnrollmentsService {
   }
 
   async complete(enrollmentId: number, userId: number) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { id: enrollmentId },
-    });
-    if (!enrollment) throw new NotFoundException('Enrollment not found');
-    if (enrollment.userId !== userId) throw new ForbiddenException();
+    const existing = await this.prisma.enrollment.findUnique({ where: { id: enrollmentId } });
+    if (!existing) throw new NotFoundException('Enrollment not found');
+    if (existing.userId !== userId) throw new ForbiddenException();
 
-    return this.prisma.enrollment.update({
+    const enrollment = await this.prisma.enrollment.update({
       where: { id: enrollmentId },
       data: { progress: 100, completedAt: new Date() },
+      include: { schedule: true },
     });
+
+    const course = await this.prisma.course.findUnique({
+      where: { id: enrollment.courseId },
+      include: { instructor: true },
+    });
+
+    return serializeEnrollment(enrollment, course);
   }
 
   async remove(enrollmentId: number, userId: number) {

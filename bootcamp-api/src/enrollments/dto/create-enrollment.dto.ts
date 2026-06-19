@@ -1,4 +1,4 @@
-import { IsInt, IsPositive } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsPositive } from 'class-validator';
 
 export class CreateEnrollmentDto {
   @IsInt()
@@ -8,4 +8,8 @@ export class CreateEnrollmentDto {
   @IsInt()
   @IsPositive()
   courseScheduleId: number;
+
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }

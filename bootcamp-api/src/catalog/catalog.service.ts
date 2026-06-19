@@ -12,8 +12,13 @@ export class CatalogService {
     });
   }
 
-  topics() {
-    return this.prisma.topic.findMany({ orderBy: { id: 'asc' } });
+  topics(query: Record<string, any> = {}) {
+    const raw = query.categories ?? query['categories[]'] ?? query.category;
+    const categoryIds = [raw].flat().filter(Boolean).map(Number).filter(n => !isNaN(n));
+    return this.prisma.topic.findMany({
+      where: categoryIds.length ? { categoryId: { in: categoryIds } } : undefined,
+      orderBy: { id: 'asc' },
+    });
   }
 
   instructors() {

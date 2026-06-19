@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationExceptionFilter } from './common/validation-exception.filter';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter';
 import { join } from 'path';
 
 async function bootstrap() {
@@ -14,7 +15,7 @@ async function bootstrap() {
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new ValidationExceptionFilter());
+  app.useGlobalFilters(new PrismaExceptionFilter(), new ValidationExceptionFilter());
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads/' });
   await app.listen(process.env.PORT ?? 8000);
 }

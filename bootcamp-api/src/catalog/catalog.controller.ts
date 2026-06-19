@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 
 @Controller()
@@ -6,17 +6,17 @@ export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get('categories')
-  async categories() {
+  categories() {
     return this.catalog.categories();
   }
 
   @Get('topics')
-  async topics() {
-    return this.catalog.topics();
+  topics(@Query() query: Record<string, any>) {
+    return this.catalog.topics(query);
   }
 
   @Get('instructors')
-  async instructors() {
+  instructors() {
     return this.catalog.instructors();
   }
 }
