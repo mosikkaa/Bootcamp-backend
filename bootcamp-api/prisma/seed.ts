@@ -14,10 +14,10 @@ function totalSeats(s: SessionType) {
 function location(s: SessionType) {
   return s === 'online' ? null : s === 'in_person' ? 'Downtown Training Center' : 'Campus Lab B';
 }
-function priceModifier(index: number) {
-  if (index < 2) return 0;
-  if (index < 4) return -5;
-  return 10;
+function priceModifier(s: SessionType) {
+  if (s === 'online') return 5;
+  if (s === 'hybrid') return 15;
+  return 30;
 }
 
 const NON_FEATURED_COMBOS = [
@@ -192,7 +192,7 @@ async function main() {
         weeklyScheduleId: w,
         timeSlotId: t,
         sessionType: sType,
-        priceModifier: priceModifier(idx),
+        priceModifier: priceModifier(sType),
         totalSeats: totalSeats(sType),
         location: location(sType),
       });
