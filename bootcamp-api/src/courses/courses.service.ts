@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WEEKLY_SCHEDULE_MAP, TIME_SLOT_MAP } from '../common/lookup-maps';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -17,6 +17,32 @@ function serializeSchedule(s: any) {
     location: s.location,
   };
 }
+
+function toCourseResponse(c: any, avgRating: number | null) {
+  return {
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    image: c.image,
+    basePrice: Number(c.basePrice),
+    durationWeeks: c.durationWeeks,
+    hours: c.hours,
+    isFeatured: c.isFeatured,
+    categoryId: c.categoryId,
+    instructorId: c.instructorId,
+    createdAt: c.createdAt,
+    category: c.category,
+    instructor: c.instructor,
+    reviewCount: c._count.reviews,
+    avgRating,
+  };
+}
+
+const courseInclude = {
+  category: true,
+  instructor: true,
+  _count: { select: { reviews: true } },
+} as const;
 
 @Injectable()
 export class CoursesService {
@@ -39,8 +65,7 @@ export class CoursesService {
         where: { id: { in: topicIds } },
         select: { categoryId: true },
       });
-      const topicCatIds = topics.map(t => t.categoryId);
-      effectiveCategoryIds = [...new Set([...effectiveCategoryIds, ...topicCatIds])];
+      effectiveCategoryIds = [...new Set([...effectiveCategoryIds, ...topics.map(t => t.categoryId)])];
     }
 
     const where: any = {};
@@ -48,69 +73,68 @@ export class CoursesService {
     if (instructorIds.length) where.instructorId = { in: instructorIds };
     if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
 
+    if (query.sort === 'rating') {
+      const [all, ratings] = await Promise.all([
+        this.prisma.course.findMany({ where, include: courseInclude }),
+        this.prisma.review.groupBy({
+          by: ['courseId'],
+          where: { course: where },
+          _avg: { rating: true },
+        }),
+      ]);
+      const ratingMap = new Map(ratings.map(r => [r.courseId, r._avg.rating ?? 0]));
+      all.sort((a, b) => (ratingMap.get(b.id) ?? 0) - (ratingMap.get(a.id) ?? 0));
+      const total = all.length;
+      const items = all.slice((page - 1) * limit, page * limit);
+      return {
+        data: items.map(c => toCourseResponse(c, ratingMap.get(c.id) ?? null)),
+        meta: { currentPage: page, lastPage: Math.ceil(total / limit), total },
+      };
+    }
+
     let orderBy: any = [{ isFeatured: 'desc' }, { createdAt: 'desc' }];
     if (query.sort === 'price_asc') orderBy = [{ basePrice: 'asc' }];
     else if (query.sort === 'price_desc') orderBy = [{ basePrice: 'desc' }];
-    else if (query.sort === 'rating') orderBy = [{ isFeatured: 'desc' }, { createdAt: 'desc' }];
 
-    const [total, items] = await Promise.all([
+    const [total, items, ratings] = await Promise.all([
       this.prisma.course.count({ where }),
       this.prisma.course.findMany({
         where,
-        include: {
-          category: true,
-          instructor: true,
-          _count: { select: { reviews: true } },
-        },
+        include: courseInclude,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
+      this.prisma.review.groupBy({
+        by: ['courseId'],
+        where: { course: where },
+        _avg: { rating: true },
+      }),
     ]);
 
-    const courseIds = items.map(c => c.id);
-    const avgRatings = await this.prisma.review.groupBy({
-      by: ['courseId'],
-      where: { courseId: { in: courseIds } },
-      _avg: { rating: true },
-    });
-    const ratingMap = new Map(avgRatings.map(r => [r.courseId, r._avg.rating]));
-
-    const data = items.map(c => ({
-      id: c.id,
-      title: c.title,
-      description: c.description,
-      image: c.image,
-      basePrice: Number(c.basePrice),
-      durationWeeks: c.durationWeeks,
-      hours: c.hours,
-      isFeatured: c.isFeatured,
-      categoryId: c.categoryId,
-      instructorId: c.instructorId,
-      createdAt: c.createdAt,
-      category: c.category,
-      instructor: c.instructor,
-      reviewCount: c._count.reviews,
-      avgRating: ratingMap.get(c.id) ?? null,
-    }));
+    const ratingMap = new Map(ratings.map(r => [r.courseId, r._avg.rating ?? null]));
 
     return {
-      data,
-      meta: {
-        currentPage: page,
-        lastPage: Math.ceil(total / limit),
-        total,
-      },
+      data: items.map(c => toCourseResponse(c, ratingMap.get(c.id) ?? null)),
+      meta: { currentPage: page, lastPage: Math.ceil(total / limit), total },
     };
   }
 
   async featured() {
-    const courses = await this.prisma.course.findMany({
-      where: { isFeatured: true },
-      include: { category: true, instructor: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    return courses.map(c => ({ ...c, basePrice: Number(c.basePrice) }));
+    const [courses, ratings] = await Promise.all([
+      this.prisma.course.findMany({
+        where: { isFeatured: true },
+        include: courseInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.review.groupBy({
+        by: ['courseId'],
+        where: { course: { isFeatured: true } },
+        _avg: { rating: true },
+      }),
+    ]);
+    const ratingMap = new Map(ratings.map(r => [r.courseId, r._avg.rating ?? null]));
+    return courses.map(c => toCourseResponse(c, ratingMap.get(c.id) ?? null));
   }
 
   async findOne(id: number, userId?: number) {
@@ -181,9 +205,6 @@ export class CoursesService {
   }
 
   async weeklySchedules(courseId: number) {
-    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
-
     const schedules = await this.prisma.courseSchedule.findMany({
       where: { courseId },
       select: { weeklyScheduleId: true },
@@ -194,9 +215,6 @@ export class CoursesService {
   }
 
   async timeSlots(courseId: number, weeklyScheduleId: number) {
-    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
-
     const schedules = await this.prisma.courseSchedule.findMany({
       where: { courseId, weeklyScheduleId },
       select: { timeSlotId: true },
@@ -212,14 +230,10 @@ export class CoursesService {
   }
 
   async sessionTypes(courseId: number, weeklyScheduleId: number, timeSlotId: number) {
-    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
-
     const schedules = await this.prisma.courseSchedule.findMany({
       where: { courseId, weeklyScheduleId, timeSlotId },
       include: { _count: { select: { enrollments: true } } },
     });
-
     return schedules.map(s => ({
       courseScheduleId: s.id,
       name: s.sessionType,
@@ -233,9 +247,7 @@ export class CoursesService {
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
     if (!course) throw new NotFoundException('Course not found');
 
-    const enrolled = await this.prisma.enrollment.findFirst({
-      where: { userId, courseId },
-    });
+    const enrolled = await this.prisma.enrollment.findFirst({ where: { userId, courseId } });
     if (!enrolled) throw new BadRequestException('You must be enrolled to review this course');
 
     await this.prisma.review.upsert({

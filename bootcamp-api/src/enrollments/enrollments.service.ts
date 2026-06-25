@@ -42,22 +42,22 @@ export class EnrollmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: number, dto: CreateEnrollmentDto, force = false) {
-    const schedule = await this.prisma.courseSchedule.findUnique({
-      where: { id: dto.courseScheduleId },
-      include: { _count: { select: { enrollments: true } } },
-    });
+    const [schedule, alreadyEnrolled] = await Promise.all([
+      this.prisma.courseSchedule.findUnique({
+        where: { id: dto.courseScheduleId },
+        include: { _count: { select: { enrollments: true } } },
+      }),
+      this.prisma.enrollment.findFirst({
+        where: { userId, courseId: dto.courseId },
+      }),
+    ]);
+
     if (!schedule || schedule.courseId !== dto.courseId) {
       throw new NotFoundException('Schedule not found for this course');
     }
-
-    const availableSeats = schedule.totalSeats - schedule._count.enrollments;
-    if (availableSeats <= 0) {
+    if (schedule.totalSeats - schedule._count.enrollments <= 0) {
       throw new BadRequestException('No seats available');
     }
-
-    const alreadyEnrolled = await this.prisma.enrollment.findFirst({
-      where: { userId, courseId: dto.courseId },
-    });
     if (alreadyEnrolled) {
       throw new ConflictException('Already enrolled in this course');
     }
@@ -91,15 +91,13 @@ export class EnrollmentsService {
 
     const enrollment = await this.prisma.enrollment.create({
       data: { userId, courseId: dto.courseId, courseScheduleId: dto.courseScheduleId },
-      include: { schedule: true },
+      include: {
+        schedule: true,
+        course: { include: { instructor: true } },
+      },
     });
 
-    const course = await this.prisma.course.findUnique({
-      where: { id: dto.courseId },
-      include: { instructor: true },
-    });
-
-    return serializeEnrollment(enrollment, course);
+    return serializeEnrollment(enrollment, enrollment.course);
   }
 
   async findAllForUser(userId: number) {
@@ -110,16 +108,19 @@ export class EnrollmentsService {
     });
 
     const courseIds = [...new Set(enrollments.map(e => e.courseId))];
-    const courses = await this.prisma.course.findMany({
-      where: { id: { in: courseIds } },
-      include: { instructor: true },
-    });
 
-    const avgRatings = await this.prisma.review.groupBy({
-      by: ['courseId'],
-      where: { courseId: { in: courseIds } },
-      _avg: { rating: true },
-    });
+    const [courses, avgRatings] = await Promise.all([
+      this.prisma.course.findMany({
+        where: { id: { in: courseIds } },
+        include: { instructor: true },
+      }),
+      this.prisma.review.groupBy({
+        by: ['courseId'],
+        where: { courseId: { in: courseIds } },
+        _avg: { rating: true },
+      }),
+    ]);
+
     const ratingMap = new Map(avgRatings.map(r => [r.courseId, r._avg.rating]));
     const courseMap = new Map(courses.map(c => [c.id, { ...c, avgRating: ratingMap.get(c.id) ?? null }]));
 
@@ -127,32 +128,32 @@ export class EnrollmentsService {
   }
 
   async complete(enrollmentId: number, userId: number) {
-    const existing = await this.prisma.enrollment.findUnique({ where: { id: enrollmentId } });
-    if (!existing) throw new NotFoundException('Enrollment not found');
-    if (existing.userId !== userId) throw new ForbiddenException();
-
-    const enrollment = await this.prisma.enrollment.update({
-      where: { id: enrollmentId },
-      data: { progress: 100, completedAt: new Date() },
-      include: { schedule: true },
-    });
-
-    const course = await this.prisma.course.findUnique({
-      where: { id: enrollment.courseId },
-      include: { instructor: true },
-    });
-
-    return serializeEnrollment(enrollment, course);
+    let enrollment: any;
+    try {
+      enrollment = await this.prisma.enrollment.update({
+        where: { id: enrollmentId },
+        data: { progress: 100, completedAt: new Date() },
+        include: {
+          schedule: true,
+          course: { include: { instructor: true } },
+        },
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2025') throw new NotFoundException('Enrollment not found');
+      throw e;
+    }
+    if (enrollment.userId !== userId) throw new ForbiddenException();
+    return serializeEnrollment(enrollment, enrollment.course);
   }
 
   async remove(enrollmentId: number, userId: number) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { id: enrollmentId },
+    const { count } = await this.prisma.enrollment.deleteMany({
+      where: { id: enrollmentId, userId },
     });
-    if (!enrollment) throw new NotFoundException('Enrollment not found');
-    if (enrollment.userId !== userId) throw new ForbiddenException();
-
-    await this.prisma.enrollment.delete({ where: { id: enrollmentId } });
+    if (count === 0) {
+      const exists = await this.prisma.enrollment.count({ where: { id: enrollmentId } });
+      throw exists ? new ForbiddenException() : new NotFoundException('Enrollment not found');
+    }
     return { message: 'Enrollment deleted' };
   }
 }

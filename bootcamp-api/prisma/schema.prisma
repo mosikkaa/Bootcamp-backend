@@ -58,6 +58,7 @@ model Course {
   instructor    Instructor       @relation(fields: [instructorId], references: [id])
   schedules     CourseSchedule[]
   reviews       Review[]
+  enrollments   Enrollment[]
   createdAt     DateTime         @default(now())
 }
 
@@ -88,6 +89,7 @@ model Enrollment {
   progress         Int            @default(0)
   completedAt      DateTime?
   user             User           @relation(fields: [userId], references: [id])
+  course           Course         @relation(fields: [courseId], references: [id])
   schedule         CourseSchedule @relation(fields: [courseScheduleId], references: [id])
   createdAt        DateTime       @default(now())
 }

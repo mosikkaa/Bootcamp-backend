@@ -17,8 +17,6 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     host: ArgumentsHost,
   ) {
     const res = host.switchToHttp().getResponse();
-    console.error('[PrismaExceptionFilter]', ex.constructor.name, (ex as any).code ?? '', ex.message.slice(0, 300));
-
     if (ex instanceof Prisma.PrismaClientValidationError) {
       return res.status(HttpStatus.BAD_REQUEST).json({ statusCode: 400, message: 'Invalid request data' });
     }

@@ -11,7 +11,7 @@ export class UsersService {
     const data: any = {};
 
     if (dto.full_name !== undefined) data.fullName = dto.full_name;
-    if (dto.mobile_number !== undefined) data.mobileNumber = `+995${dto.mobile_number}`;
+    if (dto.mobile_number !== undefined && dto.mobile_number !== '') data.mobileNumber = `+995${dto.mobile_number}`;
     if (dto.age !== undefined) data.age = dto.age;
     if (avatarFilename) {
       data.avatar = `${process.env.APP_URL}/uploads/avatars/${avatarFilename}`;
