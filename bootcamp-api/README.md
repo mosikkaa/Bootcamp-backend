@@ -2,6 +2,10 @@
 
 Backend REST API for the Bootcamp platform, built with NestJS, Prisma 7, and PostgreSQL (Supabase).
 
+## Use this backend for https://github.com/mosikkaa/Bootcamp.
+
+Firstly run backend and after that locally run Bootcamp
+
 ## Tech Stack
 
 - **NestJS** — server framework
