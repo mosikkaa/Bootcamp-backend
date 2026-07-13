@@ -61,7 +61,7 @@ export class CoursesService {
 
     const where: any = {};
     if (categoryIds.length) where.categoryId = { in: categoryIds };
-    if (topicIds.length) where.topics = { some: { id: { in: topicIds } } };
+    if (topicIds.length) where.topicId = { in: topicIds };
     if (instructorIds.length) where.instructorId = { in: instructorIds };
     if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
 

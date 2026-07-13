@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import { PrismaClient, SessionType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 
-const adapter = new PrismaPg({ connectionString: process.env['DATABASE_URL'] });
+const pool = new Pool({ connectionString: process.env['DATABASE_URL'] });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const SESSION_TYPES: SessionType[] = ['online', 'in_person', 'hybrid', 'online', 'in_person', 'hybrid'];
@@ -131,6 +133,40 @@ async function main() {
     { title: 'Cloud Security Architecture', description: 'Design cloud environments that are secure by default across AWS, Azure, and GCP. Covers identity, data protection, threat modeling, and compliance frameworks.' },
   ];
 
+  // Primary topic per course (topicId)
+  const courseTopicId: Record<number, number> = {
+    1:  8,   // HTML & CSS Bootcamp        → UX/UI
+    2:  3,   // JavaScript                 → JavaScript
+    3:  1,   // React Mastery              → React
+    4:  4,   // Node.js Backend            → Node.js
+    5:  2,   // TypeScript for React       → TypeScript
+    6:  3,   // Full-Stack                 → JavaScript
+    7:  5,   // Python for Data Science    → Python
+    8:  6,   // Machine Learning           → Machine Learning
+    9:  6,   // Deep Learning              → Machine Learning
+    10: 7,   // Data Visualization         → Analytics
+    11: 7,   // SQL & Databases            → Analytics
+    12: 5,   // Big Data with Spark        → Python
+    13: 1,   // React Native               → React
+    14: 8,   // Flutter                    → UX/UI
+    15: 8,   // iOS with Swift             → UX/UI
+    16: 8,   // Android with Kotlin        → UX/UI
+    17: 8,   // Cross-Platform Arch        → UX/UI
+    18: 8,   // Mobile UX Patterns         → UX/UI
+    19: 4,   // Docker & Kubernetes        → Node.js
+    20: 4,   // CI/CD                      → Node.js
+    21: 7,   // AWS                        → Analytics
+    22: 7,   // Terraform                  → Analytics
+    23: 4,   // Linux Admin                → Node.js
+    24: 7,   // Monitoring                 → Analytics
+    25: 10,  // Network Security           → SEO
+    26: 3,   // Ethical Hacking            → JavaScript
+    27: 5,   // Cryptography               → Python
+    28: 5,   // Secure Coding              → Python
+    29: 7,   // Incident Response          → Analytics
+    30: 7,   // Cloud Security             → Analytics
+  };
+
   const courses = courseData.map((c, i) => {
     const groupIndex = i % 6;
     const categoryId = Math.floor(i / 6) + 1;
@@ -145,53 +181,11 @@ async function main() {
       isFeatured: featuredIndices.has(i),
       categoryId,
       instructorId: (i % 12) + 1,
+      topicId: courseTopicId[i + 1],
     };
   });
 
   await prisma.course.createMany({ data: courses });
-
-  // Connect courses to the fixed 10 topics
-  const courseTopics: Record<number, number[]> = {
-    1:  [8, 9],        // HTML & CSS Bootcamp        → UX/UI, Figma
-    2:  [3],           // JavaScript                 → JavaScript
-    3:  [1, 3],        // React Mastery              → React, JavaScript
-    4:  [4],           // Node.js Backend            → Node.js
-    5:  [2, 1],        // TypeScript for React       → TypeScript, React
-    6:  [3, 4, 1],     // Full-Stack                 → JavaScript, Node.js, React
-    7:  [5],           // Python for Data Science    → Python
-    8:  [6, 5],        // Machine Learning           → Machine Learning, Python
-    9:  [6, 5],        // Deep Learning              → Machine Learning, Python
-    10: [7],           // Data Visualization         → Analytics
-    11: [7],           // SQL & Databases            → Analytics
-    12: [5, 7],        // Big Data with Spark        → Python, Analytics
-    13: [1, 3],        // React Native               → React, JavaScript
-    14: [8],           // Flutter                    → UX/UI
-    15: [8],           // iOS with Swift             → UX/UI
-    16: [8],           // Android with Kotlin        → UX/UI
-    17: [8],           // Cross-Platform Arch        → UX/UI
-    18: [8, 9],        // Mobile UX Patterns         → UX/UI, Figma
-    19: [4],           // Docker & Kubernetes        → Node.js
-    20: [4],           // CI/CD                      → Node.js
-    21: [7],           // AWS                        → Analytics
-    22: [7],           // Terraform                  → Analytics
-    23: [4],           // Linux Admin                → Node.js
-    24: [7],           // Monitoring                 → Analytics
-    25: [10],          // Network Security           → SEO
-    26: [3],           // Ethical Hacking            → JavaScript
-    27: [5],           // Cryptography               → Python
-    28: [5, 3],        // Secure Coding              → Python, JavaScript
-    29: [7],           // Incident Response          → Analytics
-    30: [7],           // Cloud Security             → Analytics
-  };
-
-  await Promise.all(
-    Object.entries(courseTopics).map(([courseId, topicIds]) =>
-      prisma.course.update({
-        where: { id: Number(courseId) },
-        data: { topics: { connect: topicIds.map(id => ({ id })) } },
-      })
-    )
-  );
 
   const schedules: {
     id: number;

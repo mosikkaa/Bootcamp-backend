@@ -1,10 +1,9 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 model User {
@@ -34,7 +33,7 @@ model Topic {
   name       String
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
-  courses    Course[] @relation("CourseTopics")
+  courses    Course[]
 }
 
 model Instructor {
@@ -55,12 +54,13 @@ model Course {
   isFeatured    Boolean          @default(false)
   categoryId    Int
   instructorId  Int
+  topicId       Int
   category      Category         @relation(fields: [categoryId], references: [id])
   instructor    Instructor       @relation(fields: [instructorId], references: [id])
+  topic         Topic            @relation(fields: [topicId], references: [id])
   schedules     CourseSchedule[]
   reviews       Review[]
   enrollments   Enrollment[]
-  topics        Topic[]          @relation("CourseTopics")
   createdAt     DateTime         @default(now())
 }
 
