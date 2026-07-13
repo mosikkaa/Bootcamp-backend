@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
 }
 
 model User {
@@ -34,6 +34,7 @@ model Topic {
   name       String
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
+  courses    Course[] @relation("CourseTopics")
 }
 
 model Instructor {
@@ -59,6 +60,7 @@ model Course {
   schedules     CourseSchedule[]
   reviews       Review[]
   enrollments   Enrollment[]
+  topics        Topic[]          @relation("CourseTopics")
   createdAt     DateTime         @default(now())
 }
 

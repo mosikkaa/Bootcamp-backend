@@ -57,36 +57,16 @@ async function main() {
 
   await prisma.topic.createMany({
     data: [
-      { id: 1, name: 'HTML & CSS Fundamentals', categoryId: 1 },
-      { id: 2, name: 'JavaScript Essentials', categoryId: 1 },
-      { id: 3, name: 'React Mastery', categoryId: 1 },
-      { id: 4, name: 'Node.js Backend', categoryId: 1 },
-      { id: 5, name: 'TypeScript Deep Dive', categoryId: 1 },
-      { id: 6, name: 'Full-Stack Projects', categoryId: 1 },
-      { id: 7, name: 'Python for Data Science', categoryId: 2 },
-      { id: 8, name: 'Machine Learning Basics', categoryId: 2 },
-      { id: 9, name: 'Deep Learning with TensorFlow', categoryId: 2 },
-      { id: 10, name: 'Data Visualization', categoryId: 2 },
-      { id: 11, name: 'SQL & Databases', categoryId: 2 },
-      { id: 12, name: 'Big Data with Spark', categoryId: 2 },
-      { id: 13, name: 'React Native', categoryId: 3 },
-      { id: 14, name: 'Flutter Development', categoryId: 3 },
-      { id: 15, name: 'iOS with Swift', categoryId: 3 },
-      { id: 16, name: 'Android with Kotlin', categoryId: 3 },
-      { id: 17, name: 'Cross-Platform Design', categoryId: 3 },
-      { id: 18, name: 'Mobile UX Patterns', categoryId: 3 },
-      { id: 19, name: 'Docker & Kubernetes', categoryId: 4 },
-      { id: 20, name: 'CI/CD Pipelines', categoryId: 4 },
-      { id: 21, name: 'AWS Fundamentals', categoryId: 4 },
-      { id: 22, name: 'Terraform & IaC', categoryId: 4 },
-      { id: 23, name: 'Linux Administration', categoryId: 4 },
-      { id: 24, name: 'Monitoring & Observability', categoryId: 4 },
-      { id: 25, name: 'Network Security', categoryId: 5 },
-      { id: 26, name: 'Ethical Hacking', categoryId: 5 },
-      { id: 27, name: 'Cryptography Basics', categoryId: 5 },
-      { id: 28, name: 'Secure Coding', categoryId: 5 },
-      { id: 29, name: 'Incident Response', categoryId: 5 },
-      { id: 30, name: 'Cloud Security', categoryId: 5 },
+      { id: 1,  name: 'React',           categoryId: 1 },
+      { id: 2,  name: 'TypeScript',      categoryId: 1 },
+      { id: 3,  name: 'JavaScript',      categoryId: 1 },
+      { id: 4,  name: 'Node.js',         categoryId: 1 },
+      { id: 5,  name: 'Python',          categoryId: 2 },
+      { id: 6,  name: 'Machine Learning',categoryId: 2 },
+      { id: 7,  name: 'Analytics',       categoryId: 2 },
+      { id: 8,  name: 'UX/UI',           categoryId: 3 },
+      { id: 9,  name: 'Figma',           categoryId: 3 },
+      { id: 10, name: 'SEO',             categoryId: 5 },
     ],
   });
 
@@ -170,6 +150,49 @@ async function main() {
 
   await prisma.course.createMany({ data: courses });
 
+  // Connect courses to the fixed 10 topics
+  const courseTopics: Record<number, number[]> = {
+    1:  [8, 9],        // HTML & CSS Bootcamp        → UX/UI, Figma
+    2:  [3],           // JavaScript                 → JavaScript
+    3:  [1, 3],        // React Mastery              → React, JavaScript
+    4:  [4],           // Node.js Backend            → Node.js
+    5:  [2, 1],        // TypeScript for React       → TypeScript, React
+    6:  [3, 4, 1],     // Full-Stack                 → JavaScript, Node.js, React
+    7:  [5],           // Python for Data Science    → Python
+    8:  [6, 5],        // Machine Learning           → Machine Learning, Python
+    9:  [6, 5],        // Deep Learning              → Machine Learning, Python
+    10: [7],           // Data Visualization         → Analytics
+    11: [7],           // SQL & Databases            → Analytics
+    12: [5, 7],        // Big Data with Spark        → Python, Analytics
+    13: [1, 3],        // React Native               → React, JavaScript
+    14: [8],           // Flutter                    → UX/UI
+    15: [8],           // iOS with Swift             → UX/UI
+    16: [8],           // Android with Kotlin        → UX/UI
+    17: [8],           // Cross-Platform Arch        → UX/UI
+    18: [8, 9],        // Mobile UX Patterns         → UX/UI, Figma
+    19: [4],           // Docker & Kubernetes        → Node.js
+    20: [4],           // CI/CD                      → Node.js
+    21: [7],           // AWS                        → Analytics
+    22: [7],           // Terraform                  → Analytics
+    23: [4],           // Linux Admin                → Node.js
+    24: [7],           // Monitoring                 → Analytics
+    25: [10],          // Network Security           → SEO
+    26: [3],           // Ethical Hacking            → JavaScript
+    27: [5],           // Cryptography               → Python
+    28: [5, 3],        // Secure Coding              → Python, JavaScript
+    29: [7],           // Incident Response          → Analytics
+    30: [7],           // Cloud Security             → Analytics
+  };
+
+  await Promise.all(
+    Object.entries(courseTopics).map(([courseId, topicIds]) =>
+      prisma.course.update({
+        where: { id: Number(courseId) },
+        data: { topics: { connect: topicIds.map(id => ({ id })) } },
+      })
+    )
+  );
+
   const schedules: {
     id: number;
     courseId: number;
@@ -236,7 +259,7 @@ async function main() {
 
   console.log(`Seeded:`);
   console.log(`  Categories: 5`);
-  console.log(`  Topics: 30`);
+  console.log(`  Topics: 10`);
   console.log(`  Instructors: 12`);
   console.log(`  Courses: ${courses.length}`);
   console.log(`  Schedules: ${schedules.length}`);

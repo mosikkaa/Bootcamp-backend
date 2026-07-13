@@ -59,17 +59,9 @@ export class CoursesService {
     const topicIds = toIds(query['topics[]'] ?? query.topics ?? query.topic);
     const instructorIds = toIds(query['instructors[]'] ?? query.instructors ?? query.instructor);
 
-    let effectiveCategoryIds: number[] = [...categoryIds];
-    if (topicIds.length) {
-      const topics = await this.prisma.topic.findMany({
-        where: { id: { in: topicIds } },
-        select: { categoryId: true },
-      });
-      effectiveCategoryIds = [...new Set([...effectiveCategoryIds, ...topics.map(t => t.categoryId)])];
-    }
-
     const where: any = {};
-    if (effectiveCategoryIds.length) where.categoryId = { in: effectiveCategoryIds };
+    if (categoryIds.length) where.categoryId = { in: categoryIds };
+    if (topicIds.length) where.topics = { some: { id: { in: topicIds } } };
     if (instructorIds.length) where.instructorId = { in: instructorIds };
     if (query.search) where.title = { contains: query.search, mode: 'insensitive' };
 

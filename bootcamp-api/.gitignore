@@ -38,6 +38,7 @@ lerna-debug.log*
 
 .env
 uploads/
-/docs
+docs/
+docs
 
 /generated/prisma
